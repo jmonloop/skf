@@ -48,7 +48,7 @@ function extractFrontmatter(lines, file) {
     if (/^---\s*$/.test(line)) { if (inFrontmatter) break; inFrontmatter = true; continue; }
     if (!inFrontmatter) continue;
     const pair = matchKey(line);
-    if (pair && pair.key === 'name') { name = pair.value; collecting = false; }
+    if (pair && pair.key === 'name') { name = unquote(pair.value); collecting = false; }
     else if (pair && pair.key === 'description') ({ desc, collecting } = startDescription(pair.value));
     else if (collecting && /^\s+\S/.test(line)) desc = appendFolded(desc, line);
     else if (pair) collecting = false;
@@ -63,8 +63,10 @@ function matchKey(line) {
 
 function startDescription(value) {
   const isBlock = /^[>|][+-]?\s*$/.test(value) || value === '';
-  return isBlock ? { desc: '', collecting: true } : { desc: value, collecting: false };
+  return isBlock ? { desc: '', collecting: true } : { desc: unquote(value), collecting: false };
 }
+
+function unquote(text) { return text.replace(/^(["'])(.*)\1$/s, '$2'); }
 
 function appendFolded(desc, line) {
   const text = line.trim();
@@ -82,22 +84,36 @@ function dedupByName(rows) {
   return rows.filter((row) => !seen.has(row.name) && seen.add(row.name));
 }
 
-// --- filter: precise substring-AND match, name hits ranked first ---
+// --- filter: match the title first; only when no title hits, fall back to fuzzy ---
 function filterRows(rows, query) {
   if (!query) return rows;
   const tokens = query.toLowerCase().split(/\s+/).filter(Boolean);
-  return rows
-    .map((row) => ({ row, score: scoreRow(row, tokens) }))
-    .filter((scored) => scored.score < 0)
-    .sort((a, b) => a.score - b.score)
-    .map((scored) => scored.row);
+  const byTitle = matchByTitle(rows, tokens);
+  return byTitle.length ? byTitle : matchByFuzzy(rows, tokens);
 }
 
-function scoreRow(row, tokens) {
+function matchByTitle(rows, tokens) {
+  return rows
+    .filter((row) => tokens.every((token) => row.name.toLowerCase().includes(token)))
+    .sort((a, b) => titleRank(a.name, tokens[0]) - titleRank(b.name, tokens[0])
+      || a.name.length - b.name.length || a.name.localeCompare(b.name));
+}
+
+function titleRank(name, firstToken) {
+  return name.toLowerCase().startsWith(firstToken) ? 0 : 1;
+}
+
+function matchByFuzzy(rows, tokens) {
+  return rows
+    .filter((row) => tokens.every((token) => haystack(row).includes(token)))
+    .sort((a, b) => nameHits(b, tokens) - nameHits(a, tokens) || a.name.localeCompare(b.name));
+}
+
+function haystack(row) { return `${row.name} ${row.desc}`.toLowerCase(); }
+
+function nameHits(row, tokens) {
   const name = row.name.toLowerCase();
-  const haystack = `${name} ${row.desc.toLowerCase()}`;
-  if (!tokens.every((token) => haystack.includes(token))) return 0;
-  return -tokens.filter((token) => name.includes(token)).length - 1;
+  return tokens.filter((token) => name.includes(token)).length;
 }
 
 // --- interactive: pipe catalog to fzf, return the chosen skill name ---
