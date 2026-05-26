@@ -1,0 +1,36 @@
+{
+  "name": "skf-cli",
+  "version": "0.1.0",
+  "description": "Fuzzy-find AI-agent skills (Claude Code, Codex, OpenCode, Pi) by name or description.",
+  "type": "module",
+  "bin": {
+    "skf": "bin/skf.js"
+  },
+  "files": [
+    "bin"
+  ],
+  "engines": {
+    "node": ">=16"
+  },
+  "keywords": [
+    "claude",
+    "claude-code",
+    "codex",
+    "opencode",
+    "skills",
+    "fzf",
+    "fuzzy",
+    "cli",
+    "agent"
+  ],
+  "license": "MIT",
+  "author": "Javier Monleón",
+  "homepage": "https://github.com/jmonloop/skf#readme",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/jmonloop/skf.git"
+  },
+  "bugs": {
+    "url": "https://github.com/jmonloop/skf/issues"
+  }
+}

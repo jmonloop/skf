@@ -32,13 +32,18 @@ Roots are scanned in priority order: **custom → project → global**.
 ## Install
 
 ```bash
-git clone https://github.com/jmonloop/skf.git
-cd skf
-./install.sh            # symlinks ./skf into ~/.local/bin
-# or: ./install.sh /usr/local/bin
+npm i -g skf-cli       # installs the `skf` command
 ```
 
-Requires **bash**, **fzf** (interactive mode), and **awk**. Clipboard copy is
+From source (development):
+
+```bash
+git clone https://github.com/jmonloop/skf.git
+cd skf
+npm link               # symlinks the `skf` command to this checkout
+```
+
+Requires **Node ≥ 16** and **fzf** (interactive mode only). Clipboard copy is
 optional and auto-detected: `pbcopy` / `xclip` / `xsel` / `wl-copy` / `clip.exe`.
 
 ## Usage
@@ -74,7 +79,9 @@ SKF_PREFIX="" skf -p deploy        # print bare skill names
    and `.git`), newest version first.
 2. Parse YAML frontmatter `name` + `description` (handles folded/literal block
    scalars), dedup by name.
-3. Fuzzy-search name+description with `fzf`; preview the file; emit the token.
+3. Interactive mode fuzzy-searches name+description with `fzf` (with file
+   preview); print mode (`-p`) ranks precise substring matches, name hits first.
+   Either way, emit the token and copy it to the clipboard.
 
 ## License
 
