@@ -84,13 +84,19 @@ function dedupByName(rows) {
   return rows.filter((row) => !seen.has(row.name) && seen.add(row.name));
 }
 
-// --- filter: match the title first; only when no title hits, fall back to fuzzy ---
+// --- filter: grep title, then grep name+desc, then fuzzy subsequence; first hit wins ---
 function filterRows(rows, query) {
   if (!query) return rows;
-  const tokens = query.toLowerCase().split(/\s+/).filter(Boolean);
-  const byTitle = matchByTitle(rows, tokens);
-  return byTitle.length ? byTitle : matchByFuzzy(rows, tokens);
+  const tokens = tokenize(query);
+  return firstNonEmpty(
+    matchByTitle(rows, tokens),
+    matchByContent(rows, tokens),
+    matchBySubsequence(rows, tokens),
+  );
 }
+
+function tokenize(query) { return query.toLowerCase().split(/\s+/).filter(Boolean); }
+function firstNonEmpty(...tiers) { return tiers.find((tier) => tier.length) ?? []; }
 
 function matchByTitle(rows, tokens) {
   return rows
@@ -103,10 +109,22 @@ function titleRank(name, firstToken) {
   return name.toLowerCase().startsWith(firstToken) ? 0 : 1;
 }
 
-function matchByFuzzy(rows, tokens) {
+function matchByContent(rows, tokens) {
   return rows
     .filter((row) => tokens.every((token) => haystack(row).includes(token)))
     .sort((a, b) => nameHits(b, tokens) - nameHits(a, tokens) || a.name.localeCompare(b.name));
+}
+
+function matchBySubsequence(rows, tokens) {
+  return rows
+    .filter((row) => tokens.every((token) => isSubsequence(token, haystack(row))))
+    .sort((a, b) => nameHits(b, tokens) - nameHits(a, tokens) || a.name.localeCompare(b.name));
+}
+
+function isSubsequence(needle, hay) {
+  let i = 0;
+  for (const ch of hay) if (ch === needle[i] && ++i === needle.length) return true;
+  return i === needle.length;
 }
 
 function haystack(row) { return `${row.name} ${row.desc}`.toLowerCase(); }
@@ -158,7 +176,14 @@ function printMatches(query) {
 
 function interactivePick(query) {
   if (!commandExists('fzf')) fail("fzf not found — install it or use 'skf -p <term>'");
-  emitSelection(pickWithFzf(buildCatalog(), query));
+  emitSelection(pickWithFzf(grepPool(buildCatalog(), query), query));
+}
+
+// grep name+desc first; hand only those to fzf. No grep hit -> full catalog for fuzzy.
+function grepPool(catalog, query) {
+  if (!query) return catalog;
+  const hits = matchByContent(catalog, tokenize(query));
+  return hits.length ? hits : catalog;
 }
 
 function main(argv) {
@@ -171,7 +196,7 @@ function main(argv) {
 // --- small utilities ---
 function isDirectory(path) { try { return statSync(path).isDirectory(); } catch { return false; } }
 function safeReaddir(dir) { try { return readdirSync(dir, { withFileTypes: true }); } catch { return []; } }
-function isPrunable(name) { return name === 'node_modules' || name === '.git'; }
+function isPrunable(name) { return name === 'node_modules' || name === '.git' || name === '.tmp'; }
 function sortByVersionDesc(files) { return files.sort((a, b) => b.localeCompare(a, undefined, { numeric: true })); }
 function commandExists(cmd) { return !spawnSync(cmd, ['--version']).error; }
 function fail(message) { console.error(`skf: ${message}`); process.exit(1); }
